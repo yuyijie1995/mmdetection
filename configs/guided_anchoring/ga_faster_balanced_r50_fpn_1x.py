@@ -1,4 +1,5 @@
 # model settings
+norm_cfg = dict(type='BN', requires_grad=True)
 model = dict(
     type='FasterRCNN',
     pretrained='open-mmlab://resnet50_caffe',
@@ -14,9 +15,16 @@ model = dict(
         style='caffe'),
     neck=dict(
         type='FPN',
+        # type='NASFPN',
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
-        num_outs=5),
+        num_outs=5,
+        # #下面是NASFPN的参数
+        # stack_times=7,
+        # start_level=1,
+        # add_extra_convs=True,
+        # norm_cfg=norm_cfg
+        ),
     rpn_head=dict(
         type='GARPNHead',
         in_channels=256,
@@ -138,9 +146,12 @@ test_cfg = dict(
         score_thr=1e-3, nms=dict(type='nms', iou_thr=0.5), max_per_img=100))
 # dataset settings
 dataset_type = 'CocoDataset'
+data_root = 'data/0.8train_0.2val/COCO/'
+# data_root = 'data/train_final/coco/'
+# data_root = 'data/testing/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/mmdetection/data/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/train_final/coco/'
-data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/testing/coco/'
+# data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/testing/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/VOC2007_add_patch/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/COCO/'
 img_norm_cfg = dict(
@@ -148,7 +159,7 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='Resize', img_scale=(2500, 1500), keep_ratio=True),
+    dict(type='Resize', img_scale=[(1333, 800),(1500,800),(1800,800)], keep_ratio=True, multiscale_mode='value'),
     dict(type='RandomFlip', flip_ratio=0.5),
     # dict(type='MinIoURandomCrop'),
     dict(type='Normalize', **img_norm_cfg),
@@ -160,7 +171,7 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(2500, 1500),
+        img_scale=[(1333, 800)],
         flip=False,
         transforms=[
             dict(type='Resize', keep_ratio=True),
@@ -187,7 +198,7 @@ data = dict(
     test=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/test2019.json',
-        img_prefix=data_root + 'test_2019/',
+        img_prefix=data_root + 'val2017/',
         pipeline=test_pipeline))
 # optimizer
 optimizer = dict(type='SGD', lr=0.0025, momentum=0.9, weight_decay=0.0001)
@@ -209,10 +220,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 20
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/ga_faster_rcnn_balanced_r50_caffe_fpn_2e_full_dataset'
+work_dir = './work_dirs/ga_faster_rcnn_balanced_r50_caffe_multiscaletrain'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
