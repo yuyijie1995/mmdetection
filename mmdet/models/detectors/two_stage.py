@@ -30,8 +30,13 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                  test_cfg=None,
                  pretrained=None):
         super(TwoStageDetector, self).__init__()
+        #上来一波build，这里和之前的build没什么区别，在注册器里面去除对应的type类型，然后返回一个对象，以后就可以肆意调用里面的功能了
+         # 这里build了backbone, neck, shared_head, rpn_head,bbox_head,mask_head（如果有）
+# 　　　　　  # backbone,主干网络用的啥，譬如resnet50, resnext101之类的
+# 　　　　　  # neck 一般是FPN,需要指定很多参数，譬如用哪些feature map,之后会详细说
+# 　　　　　  # rpn_head继承了anchor_head，是ｒｐｎ的核心功能
         self.backbone = builder.build_backbone(backbone)
-
+        self.count=0#用于在不同iterations的时候进行操作
         if neck is not None:
             self.neck = builder.build_neck(neck)
 
@@ -86,7 +91,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             if not self.share_roi_extractor:
                 self.mask_roi_extractor.init_weights()
 
-    def extract_feat(self, img):
+    def extract_feat(self, img):#forward backbone 和neck函数
         """Directly extract features from the backbone+neck
         """
         x = self.backbone(img)
@@ -163,27 +168,51 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-        x = self.extract_feat(img)
-
+        x = self.extract_feat(img)#提取backbone和neck
+        # print('after backbone:the feature map is:{0}'.format(x))
+        # if self.count%2992==1:
+        #     unloader = tf1.ToPILImage()
+        #     for stage in range(len(x)):
+        #         for batch in range(x[stage].shape[0]):
+        #             for channel in range(x[stage].shape[1]):
+        #
+        #                 image = (x[stage]*255)[batch,channel,:,:].cpu().clone()
+        #                 image = image.squeeze(0)
+        #                 image = unloader(image)
+        #                 fm_dir='./featuremap_save/'
+        #                 if not os.path.exists(fm_dir):
+        #                     os.makedirs(fm_dir)
+        #                 image.save(fm_dir+'batch{}-channel{}.jpg'
+        #                            .format(stage, batch, channel))
+        self.count+=1
         losses = dict()
 
         # RPN forward and loss
         if self.with_rpn:
-            rpn_outs = self.rpn_head(x)
+            # rpn_head在上面__init__函数里面build了,返回了rpn_head对象，
+            # 但是因为都继承了nn.Module(实现了__call__)，可以直接用实例名字调用里面的forward函数，从而进行了前向传播
+            rpn_outs = self.rpn_head(x)#对于之前neck的每一层都会有rpn输出 所以这里是5份输出
             rpn_loss_inputs = rpn_outs + (gt_bboxes, img_meta,
-                                          self.train_cfg.rpn)
+                                          self.train_cfg.rpn)#把信息叠加在一起了
+
+            # 这里loss是rpn_head里面的实现了，因为rpn_head继承了anchor_head，
+            # 所以用了父类anchor_head实现的loss，其实就是anchor的那一套，返回是一个字典
             rpn_losses = self.rpn_head.loss(
                 *rpn_loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
             losses.update(rpn_losses)
 
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
+            #这里要提取proposals来进行
             proposal_inputs = rpn_outs + (img_meta, proposal_cfg)
+            # 得到proposal,把ａｎｃｈｏｒ转化为对应的框的信息，然后ＮＭＳ再取top-N个候选框
             proposal_list = self.rpn_head.get_bboxes(*proposal_inputs)
         else:
-            proposal_list = proposals
+            proposal_list = proposals#第一次回归完成得到的所有bbox
 
         # assign gts and sample proposals
+        # 这边assign和sample的代码就是上面讲的流程里的过程
+        #接下来rcnn中其实就不用再生成anchors 而是用上面得到的proposals作为anchor使用 同样的不会使用所有的proposals进行训练，只是选择其中的一部分
         if self.with_bbox or self.with_mask:
             bbox_assigner = build_assigner(self.train_cfg.rcnn.assigner)
             bbox_sampler = build_sampler(
@@ -203,23 +232,49 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                     gt_bboxes[i],
                     gt_labels[i],
                     feats=[lvl_feat[i][None] for lvl_feat in x])
-                sampling_results.append(sampling_result)
+                sampling_results.append(sampling_result)#sampling_results包含了 bboxes pos_inds neg_inds pos_label...等
 
         # bbox head forward and loss
         if self.with_bbox:
-            rois = bbox2roi([res.bboxes for res in sampling_results])
+            rois = bbox2roi([res.bboxes for res in sampling_results])#把bbox转成roi 区别就是给每个框的编码前面家一个所属的图片索引
+            #因为一次采样多张图片，一般为2张，变成5维的向量，最后把所有的cat一下，变成(n,5)的tensor
+            #同时把4张图片的所有bboxes通过这个bbox2roi也堆叠了起来 把4个(512,5) 得到一个2048，5的张量
+            # print('rois is :{0}'.format(rois))
+            # print('rois shape is :{0}'.format(rois.shape))
             # TODO: a more flexible way to decide which feature maps to use
+            # 这里的x是 5个分辨率大小的特征图 这里只取前4层 最小的那个不取
+            #把roi对应的特征图拿出来
             bbox_feats = self.bbox_roi_extractor(
                 x[:self.bbox_roi_extractor.num_inputs], rois)
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
+            #这里得到的pred是(512,16)
             cls_score, bbox_pred = self.bbox_head(bbox_feats)
+            # if self.count==1:
+            #     bbox_pred_cpu=bbox_pred.cpu().detach()
+            #     cls_cpu=cls_score.cpu().detach()
+            #     rois_cpu=rois.cpu().detach()
+            #     bbox_pred_numpy=np.array(bbox_pred_cpu)
+            #     cls_score_numpy=np.array(cls_cpu)
+            #     rois_numpy=np.array(rois_cpu)
+            #     np.save("./bbox_pred_numpy.npy", bbox_pred_numpy)
+            #     np.save("./cls_score_numpy.npy", cls_score_numpy)
+            #     np.save("./rois_numpy.npy", rois_numpy)
 
+
+
+
+            #返回的是 labels, label_weights, bbox_targets, bbox_weights的集合 bbox_weights 正样本是1 负样本是0
             bbox_targets = self.bbox_head.get_target(sampling_results,
                                                      gt_bboxes, gt_labels,
                                                      self.train_cfg.rcnn)
+            # import pdb
+            # pdb.set_trace()
+            #直接用sampling_results(包含了pos_gt_bboxes) 里面是4张图片的gt（80，4）
+            #这里的bbox_pred则是（2048，16）进入bbox_head.loss之后选择里面的pos_ind对应的数值，---》（80，4）
             loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
                                             *bbox_targets)
+            #这里的loss先是进入bbox_head.py中进行pred的挑选 根据cls_score从bbox_pred中挑出对应的坐标
             losses.update(loss_bbox)
 
         # mask head forward and loss

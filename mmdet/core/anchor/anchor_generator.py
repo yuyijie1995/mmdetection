@@ -15,9 +15,9 @@ class AnchorGenerator(object):
     """
 
     def __init__(self, base_size, scales, ratios, scale_major=True, ctr=None):
-        self.base_size = base_size
-        self.scales = torch.Tensor(scales)
-        self.ratios = torch.Tensor(ratios)
+        self.base_size = base_size#base_size 的数值和当前的stride数值一样 为了在不同size的特征图上去生成不同大小的anchor
+        self.scales = torch.Tensor(scales) # anchor scales 8
+        self.ratios = torch.Tensor(ratios)# [0.5,1.0,2.0]
         self.scale_major = scale_major
         self.ctr = ctr
         self.base_anchors = self.gen_base_anchors()
@@ -64,20 +64,25 @@ class AnchorGenerator(object):
             return yy, xx
 
     def grid_anchors(self, featmap_size, stride=16, device='cuda'):
-        base_anchors = self.base_anchors.to(device)
-
+        base_anchors = self.base_anchors.to(device)#base_anchor 就是在0，0位置生成的第一组anchor 框
+        #每组框3个比例，比如 base_size 是anchor_stride 4 的时候 对应的是最大的特征图 104，336 stride也是4 这点和没有fpn的fsr不同
         feat_h, feat_w = featmap_size
+        #shift_y和x是0-w,0-h的数字*4 比如[0,4,8,...1340]
         shift_x = torch.arange(0, feat_w, device=device) * stride
         shift_y = torch.arange(0, feat_h, device=device) * stride
+        #网格的生成操作
         shift_xx, shift_yy = self._meshgrid(shift_x, shift_y)
+        #堆叠成4个坐标
         shifts = torch.stack([shift_xx, shift_yy, shift_xx, shift_yy], dim=-1)
+        #类型统一
         shifts = shifts.type_as(base_anchors)
         # first feat_w elements correspond to the first row of shifts
         # add A anchors (1, A, 4) to K shifts (K, 1, 4) to get
         # shifted anchors (K, A, 4), reshape to (K*A, 4)
-
+        #经典的不用循环的维度操作
+        #让每个坐标点上都有3个坐标偏移 比如stride为4时，以4为间隔的在特征图上生成anchor就是在原图上以1为间隔生成anchor
         all_anchors = base_anchors[None, :, :] + shifts[:, None, :]
-        all_anchors = all_anchors.view(-1, 4)
+        all_anchors = all_anchors.view(-1, 4)#行优先的reshape操作
         # first A rows correspond to A anchors of (0, 0) in feature map,
         # then (0, 1), (0, 2), ...
         return all_anchors

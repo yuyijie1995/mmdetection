@@ -76,6 +76,8 @@ class ConvFCBBoxHead(BBoxHead):
         if self.with_cls:
             self.fc_cls = nn.Linear(self.cls_last_dim, self.num_classes)
         if self.with_reg:
+            #class-specific 方式，很多地方也称作class-aware的检测，是早期Faster RCNN等众多算法采用的方式。
+            # 它利用每一个RoI特征回归出所有类别的bbox坐标，最后根据classification 结果索引到对应类别的box输出。
             out_dim_reg = (4 if self.reg_class_agnostic else 4 *
                            self.num_classes)
             self.fc_reg = nn.Linear(self.reg_last_dim, out_dim_reg)
@@ -185,3 +187,4 @@ class SharedFCBBoxHead(ConvFCBBoxHead):
             fc_out_channels=fc_out_channels,
             *args,
             **kwargs)
+    ## get_target和loss两个函数，因为只需要预测feature map参与计算，所以直接定义在基类BBoxHead中 子类可以直接用

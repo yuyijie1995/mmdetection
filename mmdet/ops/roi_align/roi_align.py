@@ -9,7 +9,8 @@ from . import roi_align_cuda
 class RoIAlignFunction(Function):
 
     @staticmethod
-    def forward(ctx, features, rois, out_size, spatial_scale, sample_num=0):
+    def forward(ctx, features, rois, out_size, spatial_scale, sample_num=0):#outsize 7 spatial_scale featuremap 的下采样比例，对应感受野大小
+        #sample_num roi_align里面选的采样点的数目 一般设置为2
         out_h, out_w = _pair(out_size)
         assert isinstance(out_h, int) and isinstance(out_w, int)
         ctx.spatial_scale = spatial_scale

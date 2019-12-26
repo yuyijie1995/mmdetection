@@ -58,6 +58,7 @@ def main():
 
     cfg = Config.fromfile(args.config)
     # set cudnn_benchmark
+    # 在图片输入尺度固定的时候开启，可以加速，一般都是关闭的，只有在固定尺度的网络如SSD512中才开启
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
     # update configs according to CLI args
@@ -68,7 +69,7 @@ def main():
     cfg.gpus = args.gpus
 
     if args.autoscale_lr:
-        # apply the linear scaling rule (https://arxiv.org/abs/1706.02677)
+        # apply the linear scaling rule (https://arxiv.org/abs/1706.02677) 自动调节学习率
         cfg.optimizer['lr'] = cfg.optimizer['lr'] * cfg.gpus / 8
 
     # init distributed env first, since logger depends on the dist info.
@@ -95,14 +96,17 @@ def main():
         logger.info('Set random seed to {}, deterministic: {}'.format(
             args.seed, args.deterministic))
         set_random_seed(args.seed, deterministic=args.deterministic)
-
+    # 返回一个type名字对应的类的对象 type决定了顶层算法是而阶段还是但阶段
     model = build_detector(
         cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
 
     datasets = [build_dataset(cfg.data.train)]
-    if len(cfg.workflow) == 2:
+    if len(cfg.workflow) == 2:#是否添加验证集
         datasets.append(build_dataset(cfg.data.val))
     if cfg.checkpoint_config is not None:
+        # 将mmdet版本，配置文件内容和检查点中的类名称保存为元数据
+        # 要注意的是，以前发布的模型是不存这个类别等信息的，
+        # 用的默认COCO或者VOC参数，所以如果用以前训练好的模型检测时会提醒warning一下，问题不大。
         # save mmdet version, config file content and class names in
         # checkpoints as meta data
         cfg.checkpoint_config.meta = dict(

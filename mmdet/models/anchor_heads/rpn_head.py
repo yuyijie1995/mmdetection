@@ -75,7 +75,7 @@ class RPNHead(AnchorHead):
             rpn_bbox_pred = rpn_bbox_pred.permute(1, 2, 0).reshape(-1, 4)
             anchors = mlvl_anchors[idx]
             if cfg.nms_pre > 0 and scores.shape[0] > cfg.nms_pre:
-                _, topk_inds = scores.topk(cfg.nms_pre)
+                _, topk_inds = scores.topk(cfg.nms_pre)#取得得分最高的2000项
                 rpn_bbox_pred = rpn_bbox_pred[topk_inds, :]
                 anchors = anchors[topk_inds, :]
                 scores = scores[topk_inds]
@@ -89,7 +89,7 @@ class RPNHead(AnchorHead):
                 proposals = proposals[valid_inds, :]
                 scores = scores[valid_inds]
             proposals = torch.cat([proposals, scores.unsqueeze(-1)], dim=-1)
-            proposals, _ = nms(proposals, cfg.nms_thr)
+            proposals, _ = nms(proposals, cfg.nms_thr)#输入是(2000,5)的tensor，nmsCUDA版本
             proposals = proposals[:cfg.nms_post, :]
             mlvl_proposals.append(proposals)
         proposals = torch.cat(mlvl_proposals, 0)

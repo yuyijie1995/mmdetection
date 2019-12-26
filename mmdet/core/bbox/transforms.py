@@ -5,12 +5,12 @@ import torch
 
 def bbox2delta(proposals, gt, means=[0, 0, 0, 0], stds=[1, 1, 1, 1]):
     assert proposals.size() == gt.size()
-
+    #proposals的尺寸 比如 (4,4)
     proposals = proposals.float()
     gt = gt.float()
-    px = (proposals[..., 0] + proposals[..., 2]) * 0.5
+    px = (proposals[..., 0] + proposals[..., 2]) * 0.5#求中心x
     py = (proposals[..., 1] + proposals[..., 3]) * 0.5
-    pw = proposals[..., 2] - proposals[..., 0] + 1.0
+    pw = proposals[..., 2] - proposals[..., 0] + 1.0#求宽
     ph = proposals[..., 3] - proposals[..., 1] + 1.0
 
     gx = (gt[..., 0] + gt[..., 2]) * 0.5
@@ -24,9 +24,10 @@ def bbox2delta(proposals, gt, means=[0, 0, 0, 0], stds=[1, 1, 1, 1]):
     dh = torch.log(gh / ph)
     deltas = torch.stack([dx, dy, dw, dh], dim=-1)
 
-    means = deltas.new_tensor(means).unsqueeze(0)
+    means = deltas.new_tensor(means).unsqueeze(0)#.new_tensor()读取means的data并且创建一个叶子变量。相当于是means.clone().detech()
+    #.unsqueeze()对维度进行扩充，给制定位置加上维数为一的维度 原来means是（4，）现在就是(1，4)
     stds = deltas.new_tensor(stds).unsqueeze(0)
-    deltas = deltas.sub_(means).div_(stds)
+    deltas = deltas.sub_(means).div_(stds)#求的deltas要减去均值除方差
 
     return deltas
 
@@ -78,7 +79,7 @@ def delta2bbox(rois,
     means = deltas.new_tensor(means).repeat(1, deltas.size(1) // 4)
     stds = deltas.new_tensor(stds).repeat(1, deltas.size(1) // 4)
     denorm_deltas = deltas * stds + means
-    dx = denorm_deltas[:, 0::4]
+    dx = denorm_deltas[:, 0::4]#0::4的写法保证输出的东西还是二维的张量 （2000，1）
     dy = denorm_deltas[:, 1::4]
     dw = denorm_deltas[:, 2::4]
     dh = denorm_deltas[:, 3::4]
@@ -86,7 +87,7 @@ def delta2bbox(rois,
     dw = dw.clamp(min=-max_ratio, max=max_ratio)
     dh = dh.clamp(min=-max_ratio, max=max_ratio)
     # Compute center of each roi
-    px = ((rois[:, 0] + rois[:, 2]) * 0.5).unsqueeze(1).expand_as(dx)
+    px = ((rois[:, 0] + rois[:, 2]) * 0.5).unsqueeze(1).expand_as(dx)#如果使用b.expand_as(a)就是将b进行扩充，扩充到a的维度
     py = ((rois[:, 1] + rois[:, 3]) * 0.5).unsqueeze(1).expand_as(dy)
     # Compute width/height of each roi
     pw = (rois[:, 2] - rois[:, 0] + 1.0).unsqueeze(1).expand_as(dw)
@@ -160,6 +161,7 @@ def bbox2roi(bbox_list):
     for img_id, bboxes in enumerate(bbox_list):
         if bboxes.size(0) > 0:
             img_inds = bboxes.new_full((bboxes.size(0), 1), img_id)
+            #new_full操作返回填充满img_id数值的（bboxes.size（0），1）大小的tensor dtype和device和bboxes一样
             rois = torch.cat([img_inds, bboxes[:, :4]], dim=-1)
         else:
             rois = bboxes.new_zeros((0, 5))

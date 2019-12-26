@@ -52,6 +52,7 @@ class SingleRoIExtractor(nn.Module):
         return roi_layers
 
     def map_roi_levels(self, rois, num_levels):
+        #把所有的roi都分配好不同的等级
         """Map rois to corresponding feature levels by scales.
 
         - scale < finest_scale * 2: level 0
@@ -100,7 +101,7 @@ class SingleRoIExtractor(nn.Module):
             rois = self.roi_rescale(rois, roi_scale_factor)
         for i in range(num_levels):
             inds = target_lvls == i
-            if inds.any():
+            if inds.any():#有一个不为False则返回True
                 rois_ = rois[inds, :]
                 roi_feats_t = self.roi_layers[i](feats[i], rois_)
                 roi_feats[inds] = roi_feats_t

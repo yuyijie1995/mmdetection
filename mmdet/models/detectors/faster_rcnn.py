@@ -2,8 +2,8 @@ from ..registry import DETECTORS
 from .two_stage import TwoStageDetector
 
 
-@DETECTORS.register_module
-class FasterRCNN(TwoStageDetector):
+@DETECTORS.register_module#在build_from_cfg中 实例化了detector 然后将类和类实例进行注册
+class FasterRCNN(TwoStageDetector):#继承了双阶段的检测器 TwoStageDetector MASKRCNN也继承了他
 
     def __init__(self,
                  backbone,

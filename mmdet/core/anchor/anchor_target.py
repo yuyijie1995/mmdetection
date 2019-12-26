@@ -34,8 +34,10 @@ def anchor_target(anchor_list,
     assert len(anchor_list) == len(valid_flag_list) == num_imgs
 
     # anchor number of multi levels
+    #这里会求出每个级别特征图上的anchor数量
     num_level_anchors = [anchors.size(0) for anchors in anchor_list[0]]
     # concat all level anchors and flags to a single tensor
+    #把所有级别的毛框都统一到一个张量上
     for i in range(num_imgs):
         assert len(anchor_list[i]) == len(valid_flag_list[i])
         anchor_list[i] = torch.cat(anchor_list[i])
@@ -68,7 +70,11 @@ def anchor_target(anchor_list,
     num_total_pos = sum([max(inds.numel(), 1) for inds in pos_inds_list])
     num_total_neg = sum([max(inds.numel(), 1) for inds in neg_inds_list])
     # split targets to a list w.r.t. multiple levels
-    labels_list = images_to_levels(all_labels, num_level_anchors)
+    # 把之前每个anchor匹配到的label,label_weight,bbox_target(dx,dy,dh,dw),bbox_wight之类的重新拆分到不同分辨图，之前是全都
+    #杂糅到了一起
+    #但是注意 anchor_list依旧是按照每个gpu的图片数量来分的，如果需要得到anchor的预测框，需要把anchor也先进行处理，作为ROis和delta也就是bbox_target
+    #传入delta2bbox()中
+    labels_list = images_to_levels(all_labels, num_level_anchors)#把每张图片的对应的相同分辨率的anchor都拼接到一起
     label_weights_list = images_to_levels(all_label_weights, num_level_anchors)
     bbox_targets_list = images_to_levels(all_bbox_targets, num_level_anchors)
     bbox_weights_list = images_to_levels(all_bbox_weights, num_level_anchors)
@@ -106,7 +112,7 @@ def anchor_target_single(flat_anchors,
     inside_flags = anchor_inside_flags(flat_anchors, valid_flags,
                                        img_meta['img_shape'][:2],
                                        cfg.allowed_border)
-    if not inside_flags.any():
+    if not inside_flags.any():#any的用法，判断给定的可迭代参数iterable是否全为False,如果是则返回False，如果有一个为True，则返回True
         return (None, ) * 6
     # assign gt and sample anchors
     anchors = flat_anchors[inside_flags, :]
@@ -120,10 +126,10 @@ def anchor_target_single(flat_anchors,
                                              gt_bboxes_ignore, gt_labels)
         bbox_sampler = PseudoSampler()
         sampling_result = bbox_sampler.sample(assign_result, anchors,
-                                              gt_bboxes)
+                                              gt_bboxes)#代码里面的bboxed指的就是anchors
 
     num_valid_anchors = anchors.shape[0]
-    bbox_targets = torch.zeros_like(anchors)
+    bbox_targets = torch.zeros_like(anchors)#(anchor_nums,4)
     bbox_weights = torch.zeros_like(anchors)
     labels = anchors.new_zeros(num_valid_anchors, dtype=torch.long)
     label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
@@ -134,7 +140,7 @@ def anchor_target_single(flat_anchors,
         pos_bbox_targets = bbox2delta(sampling_result.pos_bboxes,
                                       sampling_result.pos_gt_bboxes,
                                       target_means, target_stds)
-        bbox_targets[pos_inds, :] = pos_bbox_targets
+        bbox_targets[pos_inds, :] = pos_bbox_targets#现在把bboxtarget正样本对应的位置填充上offset待会儿用于求损失
         bbox_weights[pos_inds, :] = 1.0
         if gt_labels is None:
             labels[pos_inds] = 1
@@ -148,6 +154,7 @@ def anchor_target_single(flat_anchors,
         label_weights[neg_inds] = 1.0
 
     # map up to original set of anchors
+    #再次映射回原始的锚框维度中 把那些超过边界舍弃的anchor也填充上0
     if unmap_outputs:
         num_total_anchors = flat_anchors.size(0)
         labels = unmap(labels, num_total_anchors, inside_flags)

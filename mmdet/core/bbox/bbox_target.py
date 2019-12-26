@@ -51,6 +51,7 @@ def bbox_target_single(pos_bboxes,
         labels[:num_pos] = pos_gt_labels
         pos_weight = 1.0 if cfg.pos_weight <= 0 else cfg.pos_weight
         label_weights[:num_pos] = pos_weight
+        #在这里才把bbox转化为delta 只用正样本
         pos_bbox_targets = bbox2delta(pos_bboxes, pos_gt_bboxes, target_means,
                                       target_stds)
         bbox_targets[:num_pos, :] = pos_bbox_targets

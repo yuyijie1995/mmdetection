@@ -6,9 +6,13 @@ import numpy as np
 from albumentations import Compose
 from imagecorruptions import corrupt
 from numpy import random
-
+import random as rd
+import cv2
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 from ..registry import PIPELINES
+import scipy.misc
+from PIL import Image
+
 
 
 @PIPELINES.register_module
@@ -109,7 +113,7 @@ class Resize(object):
         results['scale_idx'] = scale_idx
 
     def _resize_img(self, results):
-        if self.keep_ratio:
+        if self.keep_ratio:#保持比例不变
             img, scale_factor = mmcv.imrescale(
                 results['img'], results['scale'], return_scale=True)
         else:
@@ -854,3 +858,165 @@ class Albu(object):
         repr_str = self.__class__.__name__
         repr_str += '(transformations={})'.format(self.transformations)
         return repr_str
+
+@PIPELINES.register_module
+class RandomAddPatch(object):
+    """Random add the small Patch in the image
+        only aug the small target
+
+    Args:
+        nums_patch (int, optional): The adding number.
+    """
+    def __init__(self, nums_patch=2,threshold=0.3,scale_range=(0.9,1.0,1.1,1.2,1.3,1.4,1.5)):
+        self.nums_patch = nums_patch
+        self.threshold=threshold
+        self.scale=scale_range
+
+
+    def addPatch(self,results):
+        if results['gt_bboxes'].size>0:
+            gt_bboxes=results['gt_bboxes'].tolist()
+            gt_labels=results['gt_labels'].tolist()
+            occluded=results['ann_info']['occluded'].tolist()
+            img=results['img']
+            image = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            width=results['img_info']['width']
+            height=results['img_info']['height']
+            new_bboxes=[]
+            for inx,bbox in enumerate(gt_bboxes):
+                #填充mask，label，bbox
+
+                bbox_width,bbox_height=bbox[2]-bbox[0],bbox[3]-bbox[1]
+                if bbox_width>30 or bbox_height>30 or bbox_width<5 or bbox_height<5:
+                    continue
+                for i in range(self.nums_patch):
+                    if occluded[inx]>1:
+                        #给定新的patch位置
+                        new_bbox_left = random.randint(0, width - bbox_width)
+                        new_bbox_top = random.randint(0, height - bbox_height)
+                        #bbox全体取整
+                        b1 = int(bbox[1]+1)
+                        b3 = int(bbox[3])
+                        b0 = int(bbox[0]+1)
+                        b2 = int(bbox[2])
+                        bbox_width=b2-b0
+                        bbox_height=b3-b1
+
+                        bbox1 = [new_bbox_left, new_bbox_top, new_bbox_left + bbox_width,
+                                 new_bbox_top + bbox_height]
+                        ious=[self.bbox_iou(bbox1,bbox2) for bbox2 in gt_bboxes ]
+                        #补充label
+                        if max(ious)<=self.threshold:
+                            gt_labels.append(gt_labels[inx])
+                        ###PIL 版本
+                        region = image.crop((b0, b1, b2 - 1, b3 - 1))
+                        # region = region.resize((scaled_bbox_width, scaled_bbox_height), Image.ANTIALIAS)
+                        image.paste(region, (new_bbox_left, new_bbox_top))
+                        ###cv版本
+                        # crop = img[b1:b3, b0:b2, :]
+                        # # crop_float = crop.astype(np.float32)
+                        # img[new_bbox_top:new_bbox_top + bbox_height, new_bbox_left:new_bbox_left + bbox_width, :] = crop
+                        new_bboxes.append(bbox1)
+                    else:
+                        new_bbox_left=random.randint(0,width-bbox_width)
+                        new_bbox_top=random.randint(0,height-bbox_height)
+                        b1 = int(bbox[1]+1)
+                        b3 = int(bbox[3])
+                        b0 = int(bbox[0]+1)
+                        b2 = int(bbox[2])
+                        bbox_width = b2 - b0
+                        bbox_height = b3 - b1
+
+                        scale_ratio = rd.sample(self.scale,1)[0]
+                        scaled_bbox_width=int(bbox_width*scale_ratio)
+                        scaled_bbox_height=int(bbox_height*scale_ratio)
+                        bbox1 = [new_bbox_left, new_bbox_top, new_bbox_left + scaled_bbox_width ,
+                                 new_bbox_top + scaled_bbox_height]
+                        ious=[self.bbox_iou(bbox1,bbox2) for bbox2 in gt_bboxes ]
+
+                        if max(ious)<=self.threshold:
+                            gt_labels.append(gt_labels[inx])
+                            crop = img[b1:b3, b0:b2, :]
+                            # crop_float = crop.astype(np.float32)
+                            # scaled_crop = mmcv.imresize(crop, (scaled_bbox_width, scaled_bbox_height))
+                            # print(scaled_bbox_width,scaled_bbox_height)
+                            # if scaled_bbox_height<5 or scaled_bbox_width<5:
+                            ###PIL版本
+                            region = image.crop((b0, b1, b2 - 1, b3 - 1))
+                            region = region.resize((scaled_bbox_width, scaled_bbox_height), Image.ANTIALIAS)
+                            image.paste(region, (new_bbox_left, new_bbox_top))
+                            ###cv2版本
+                            # scaled_crop = scipy.misc.imresize(crop,(scaled_bbox_height,scaled_bbox_width))
+
+                            # img[new_bbox_top:new_bbox_top + scaled_bbox_height, new_bbox_left:new_bbox_left + scaled_bbox_width,:] = scaled_crop
+                            new_bboxes.append(bbox1)
+            gt_bboxes.extend(new_bboxes)
+            img = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
+            results['img']=img
+            results['gt_bboxes']=np.array(gt_bboxes,dtype=np.float32)
+            results['gt_labels']=np.array(gt_labels)
+        return results
+    def bbox_iou(self,box1, box2):
+        b1_x1, b1_y1, b1_x2, b1_y2 = box1
+        b2_x1, b2_y1, b2_x2, b2_y2 = box2
+        # get the corrdinates of the intersection rectangle
+        inter_rect_x1 = max(b1_x1, b2_x1)
+        inter_rect_y1 = max(b1_y1, b2_y1)
+        inter_rect_x2 = min(b1_x2, b2_x2)
+        inter_rect_y2 = min(b1_y2, b2_y2)
+        # Intersection area
+        inter_width = inter_rect_x2 - inter_rect_x1 + 1
+        inter_height = inter_rect_y2 - inter_rect_y1 + 1
+        if inter_width > 0 and inter_height > 0:  # strong condition
+            inter_area = inter_width * inter_height
+            # Union Area
+            b1_area = (b1_x2 - b1_x1 + 1) * (b1_y2 - b1_y1 + 1)
+            b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
+            iou = inter_area / (b1_area + b2_area - inter_area)
+        else:
+            iou = 0
+        return iou
+    def __call__(self, results):
+
+        self.addPatch(results)
+
+        return results
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(nums_patch={})'.format(
+            self.nums_patch)
+
+# @PIPELINES.register_module
+# class Mixup(object):
+#     """Mixup the image and label
+#
+#     Args:
+#         p (float, optional): The probability to mixup.
+#         lambd(float):the coefficient
+#     """
+#     def __init__(self, p=0.5, lambd=0.5):
+#         self.lambd = lambd
+#         self.p = p
+#
+#     def __call__(self, results):
+#         if random.random() < self.p:
+#             print("********** start mixup **********")  # 0.5的概率进行mixup
+#             # height = max(img1.shape[0], img2.shape[0])
+#             # width = max(img1.shape[1], img2.shape[1])
+#             # # 图像融合
+#             # mixup_image = np.zeros([height, width, 3])
+#             # mixup_image[:img1.shape[0], :img1.shape[1], :] = img1 * self.lambd
+#             # mixup_image[:img2.shape[0], :img2.shape[1], :] += img2 * (1. - self.lambd)
+#             # # 合并boxes
+#             # mixup_boxes = np.vstack((boxes1, boxes2))
+#             # # 合并标签
+#             # mixup_label = np.hstack((labels1, labels2))
+#             return mixup_image, mixup_boxes, mixup_label
+#         else:
+#             print("********** not mixup **********")
+#
+#     def __repr__(self):
+#         return self.__class__.__name__ + '(mix_up_prob={})'.format(
+#             self.p)
+if __name__=="__main__":
+    pass

@@ -108,8 +108,8 @@ class AnchorHead(nn.Module):
         Returns:
             tuple: anchors of each image, valid flags of each image
         """
-        num_imgs = len(img_metas)
-        num_levels = len(featmap_sizes)
+        num_imgs = len(img_metas)#比如4张图
+        num_levels = len(featmap_sizes)#有几组特征图
 
         # since feature map sizes of all images are the same, we only compute
         # anchors for one time
@@ -118,9 +118,11 @@ class AnchorHead(nn.Module):
             anchors = self.anchor_generators[i].grid_anchors(
                 featmap_sizes[i], self.anchor_strides[i], device=device)
             multi_level_anchors.append(anchors)
+        #anchor_list是个len为img_per_gpu的列表 里面每个元素是每个级别的特征图对应的anchors 对于每张图都一样，所以这里直接复制了
         anchor_list = [multi_level_anchors for _ in range(num_imgs)]
 
         # for each image, we compute valid flags of multi level anchors
+        #把超出边界的anchor坐标 标记为0
         valid_flag_list = []
         for img_id, img_meta in enumerate(img_metas):
             multi_level_flags = []
@@ -128,7 +130,7 @@ class AnchorHead(nn.Module):
                 anchor_stride = self.anchor_strides[i]
                 feat_h, feat_w = featmap_sizes[i]
                 h, w, _ = img_meta['pad_shape']
-                valid_feat_h = min(int(np.ceil(h / anchor_stride)), feat_h)
+                valid_feat_h = min(int(np.ceil(h / anchor_stride)), feat_h)#小的那个值作为有效特征边界值
                 valid_feat_w = min(int(np.ceil(w / anchor_stride)), feat_w)
                 flags = self.anchor_generators[i].valid_flags(
                     (feat_h, feat_w), (valid_feat_h, valid_feat_w),
@@ -144,7 +146,7 @@ class AnchorHead(nn.Module):
         labels = labels.reshape(-1)
         label_weights = label_weights.reshape(-1)
         cls_score = cls_score.permute(0, 2, 3,
-                                      1).reshape(-1, self.cls_out_channels)
+                                      1).reshape(-1, self.cls_out_channels)#(4,3,104,336)->(419328,1)
         loss_cls = self.loss_cls(
             cls_score, labels, label_weights, avg_factor=num_total_samples)
         # regression loss
@@ -167,14 +169,18 @@ class AnchorHead(nn.Module):
              img_metas,
              cfg,
              gt_bboxes_ignore=None):
-        featmap_sizes = [featmap.size()[-2:] for featmap in cls_scores]
-        assert len(featmap_sizes) == len(self.anchor_generators)
+        featmap_sizes = [featmap.size()[-2:] for featmap in cls_scores]#得到五组特征图分辨率的值
+        assert len(featmap_sizes) == len(self.anchor_generators)#5
 
         device = cls_scores[0].device
 
         anchor_list, valid_flag_list = self.get_anchors(
             featmap_sizes, img_metas, device=device)
         label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
+        #把rpn阶段给到anchor对应的gt匹配
+        #cls_reg_target是一个列表，包含6项 labels_list, label_weights_list, bbox_targets_list,
+        #bbox_weights_list, num_total_pos, num_total_neg 前面4项都是每个anchor对应的值
+        #每一项里面又根据分辨率不同分成5个级别 这里4张图片已经一起处理了 没有图片的概念，只有不同stride的划分
         cls_reg_targets = anchor_target(
             anchor_list,
             valid_flag_list,
@@ -195,8 +201,8 @@ class AnchorHead(nn.Module):
             num_total_pos + num_total_neg if self.sampling else num_total_pos)
         losses_cls, losses_bbox = multi_apply(
             self.loss_single,
-            cls_scores,
-            bbox_preds,
+            cls_scores,#是rpn网络推测的 比如（4,3,104,336）
+            bbox_preds,#同上，比如(4,12,104,336)
             labels_list,
             label_weights_list,
             bbox_targets_list,
@@ -213,6 +219,7 @@ class AnchorHead(nn.Module):
                    cfg,
                    rescale=False):
         """
+        #用于rcnn的proposals生成 把rpn得到的pred去结合选到的anchors
         Transform network output for a batch into labeled boxes.
 
         Args:
@@ -262,7 +269,8 @@ class AnchorHead(nn.Module):
                 device=device) for i in range(num_levels)
         ]
         result_list = []
-        for img_id in range(len(img_metas)):
+        for img_id in range(len(img_metas)):#这里对之前得到的预测值根据不同图片进行拆分 拆分之后再分别对每张图片的元素进行处理
+            #进入下面的get_bboxes_single()环节 在rpn_head.py文件中 注意anchors其实不用拆分，因为每张图片都一样
             cls_score_list = [
                 cls_scores[i][img_id].detach() for i in range(num_levels)
             ]

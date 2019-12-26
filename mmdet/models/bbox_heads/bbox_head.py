@@ -78,12 +78,14 @@ class BBoxHead(nn.Module):
         return cls_score, bbox_pred
 
     def get_target(self, sampling_results, gt_bboxes, gt_labels,
-                   rcnn_train_cfg):
+                   rcnn_train_cfg):#sampler result 中得到 一个batch被采样的候选框以及和它匹配上的gt框
         pos_proposals = [res.pos_bboxes for res in sampling_results]
         neg_proposals = [res.neg_bboxes for res in sampling_results]
         pos_gt_bboxes = [res.pos_gt_bboxes for res in sampling_results]
         pos_gt_labels = [res.pos_gt_labels for res in sampling_results]
         reg_classes = 1 if self.reg_class_agnostic else self.num_classes
+        #到这里为之这些gt_box和sampling_results依旧是完整值的形式，而不是偏差形式
+        #pos_gt_bboxes就是gt值 进入bbox_target去求得dx,dy等gt偏差值
         cls_reg_targets = bbox_target(
             pos_proposals,
             neg_proposals,
@@ -134,7 +136,7 @@ class BBoxHead(nn.Module):
         return losses
 
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))
-    def get_det_bboxes(self,
+    def get_det_bboxes(self,#用于inference
                        rois,
                        cls_score,
                        bbox_pred,

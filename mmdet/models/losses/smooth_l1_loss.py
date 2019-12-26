@@ -12,7 +12,7 @@ def smooth_l1_loss(pred, target, beta=1.0):
     diff = torch.abs(pred - target)
     loss = torch.where(diff < beta, 0.5 * diff * diff / beta,
                        diff - 0.5 * beta)
-    return loss
+    return loss#出来的loss也是(4,4)和pred维度一样 但是会经过一个装饰器 将loss加权平均 最后得到的是一个数值
 
 
 @LOSSES.register_module
@@ -34,6 +34,7 @@ class SmoothL1Loss(nn.Module):
         assert reduction_override in (None, 'none', 'mean', 'sum')
         reduction = (
             reduction_override if reduction_override else self.reduction)
+
         loss_bbox = self.loss_weight * smooth_l1_loss(
             pred,
             target,

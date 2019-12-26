@@ -96,10 +96,14 @@ class MaxIoUAssigner(BaseAssigner):
                 gt_labels = gt_labels.cpu()
 
         bboxes = bboxes[:, :4]
-        overlaps = bbox_overlaps(gt_bboxes, bboxes)
+
+
+        overlaps = bbox_overlaps(gt_bboxes, bboxes)#得到的overlap第一维度是gt数量，第二维度是anchorbox数量
+
+
 
         if (self.ignore_iof_thr > 0) and (gt_bboxes_ignore is not None) and (
-                gt_bboxes_ignore.numel() > 0):
+                gt_bboxes_ignore.numel() > 0):#numel返回张量变量内所有的元素个数
             if self.ignore_wrt_candidates:
                 ignore_overlaps = bbox_overlaps(
                     bboxes, gt_bboxes_ignore, mode='iof')
@@ -132,7 +136,7 @@ class MaxIoUAssigner(BaseAssigner):
         num_gts, num_bboxes = overlaps.size(0), overlaps.size(1)
 
         # 1. assign -1 by default
-        assigned_gt_inds = overlaps.new_full((num_bboxes, ),
+        assigned_gt_inds = overlaps.new_full((num_bboxes, ),#返回一个一样形状的填充了某个数值的tensor
                                              -1,
                                              dtype=torch.long)
 
@@ -170,14 +174,14 @@ class MaxIoUAssigner(BaseAssigner):
                              & (max_overlaps < self.neg_iou_thr[1])] = 0
 
         # 3. assign positive: above positive IoU threshold
-        pos_inds = max_overlaps >= self.pos_iou_thr
-        assigned_gt_inds[pos_inds] = argmax_overlaps[pos_inds] + 1
+        pos_inds = max_overlaps >= self.pos_iou_thr#得到每个anchor和匹配iou最大的gt是否是pos
+        assigned_gt_inds[pos_inds] = argmax_overlaps[pos_inds] + 1#把gtbbox序号+1
 
         # 4. assign fg: for each gt, proposals with highest IoU
         for i in range(num_gts):
             if gt_max_overlaps[i] >= self.min_pos_iou:
                 if self.gt_max_assign_all:
-                    max_iou_inds = overlaps[i, :] == gt_max_overlaps[i]
+                    max_iou_inds = overlaps[i, :] == gt_max_overlaps[i]#生成一个booltensor 其中为True的对应的就是和这个gtiou最大的anchor_index
                     assigned_gt_inds[max_iou_inds] = i + 1
                 else:
                     assigned_gt_inds[gt_argmax_overlaps[i]] = i + 1
