@@ -7,7 +7,7 @@ import random
 import math
 
 def get_sample_value(txt_name, category_name):
-    label_path = '/media/wrc/0EB90E450EB90E45/data/kitti/label_2/'
+    label_path = '/media/wrc/0EB90E450EB90E45/data/car_only/label_2/'
     txt_path = label_path + txt_name+'.txt'
     try:
         with open(txt_path) as r_tdf:
@@ -18,7 +18,7 @@ def get_sample_value(txt_name, category_name):
     except IOError as ioerr:
         print('File error:'+str(ioerr))
 
-txt_list_path = glob.glob('/media/wrc/0EB90E450EB90E45/data/kitti/label_2/*.txt')
+txt_list_path = glob.glob('/media/wrc/0EB90E450EB90E45/data/car_only/label_2/*.txt')
 txt_list = []
 
 for item in txt_list_path:
@@ -46,8 +46,8 @@ print(num_test, end = '\n\n')
 
 #pdb.set_trace()
 
-Main_path = '/media/wrc/0EB90E450EB90E45/data/kitti/ImageSets/Main/'
-test_Main_path = '/media/wrc/0EB90E450EB90E45/data/kitti/ImageSets/Main/'
+Main_path = '/media/wrc/0EB90E450EB90E45/data/car_only/train_final/ImageSets/Main/'
+test_Main_path = '/media/wrc/0EB90E450EB90E45/data/car_only/train_final/ImageSets/Main/'
 
 if not os.path.exists(Main_path):
     os.makedirs(Main_path)

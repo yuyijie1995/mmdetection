@@ -7,7 +7,7 @@ import sys
 import os
 import shutil
 START_BOUNDING_BOX_ID = 1
-PRE_DEFINE_CATEGORIES = {"Car": 1, "Cyclist": 2, "Pedestrian": 3}
+PRE_DEFINE_CATEGORIES = {"Car": 1}
 
 
 
@@ -36,9 +36,9 @@ def split(txt_path, img_dir, dst_path):
 
 
 if __name__ == '__main__':
-    txt_list = '/media/wrc/0EB90E450EB90E45/data/kitti/ImageSets/Main/'
-    src_img_dir = '/media/wrc/0EB90E450EB90E45/data/kitti/image_2/'
-    dst_img_dir = '/media/wrc/0EB90E450EB90E45/data/kitti/COCO/'
+    txt_list = '/media/wrc/0EB90E450EB90E45/data/car_only/train0.8/VOC2007/ImageSets/Main/'
+    src_img_dir = '/media/wrc/0EB90E450EB90E45/data/car_only/train0.8/VOC2007/JPEGImages/'
+    dst_img_dir = '/media/wrc/0EB90E450EB90E45/data/car_only/train0.8/coco/'
     split(txt_list, src_img_dir, dst_img_dir)
 
 

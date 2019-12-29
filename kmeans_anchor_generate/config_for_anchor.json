@@ -3,12 +3,12 @@
         "min_input_size":       800,
         "max_input_size":       1333,
         "anchors":              [55,69, 75,234, 133,240, 136,129, 142,363, 203,290, 228,184, 285,359, 341,260],
-        "labels":               ["Car","Pedestrian","Cyclist"]
+        "labels":               ["Car"]
     },
 
     "train": {
-        "train_image_folder":   "/home/wrc/EfficientDet/datasets/VOC2007/JPEGImages/",
-        "train_annot_folder":   "/home/wrc/EfficientDet/datasets/VOC2007/Annotations/",
+        "train_image_folder":   "/media/wrc/0EB90E450EB90E45/data/car_only/train0.8/VOC2007/JPEGImages/",
+        "train_annot_folder":   "/media/wrc/0EB90E450EB90E45/data/car_only/train0.8/VOC2007/Annotations/",
         "cache_name":           "kitti.pkl",
 
         "train_times":          8,

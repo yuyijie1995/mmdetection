@@ -60,7 +60,7 @@ model = dict(
         in_channels=256,
         fc_out_channels=1024,
         roi_feat_size=7,
-        num_classes=4,
+        num_classes=2,
         target_means=[0., 0., 0., 0.],
         target_stds=[0.05, 0.05, 0.1, 0.1],
         reg_class_agnostic=False,
@@ -146,20 +146,20 @@ test_cfg = dict(
         score_thr=1e-3, nms=dict(type='nms', iou_thr=0.5), max_per_img=100))
 # dataset settings
 dataset_type = 'CocoDataset'
-data_root = 'data/0.8train_0.2val/COCO/'
+# data_root = 'data/0.8train_0.2val/COCO/'
 # data_root = 'data/train_final/coco/'
 # data_root = 'data/testing/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/mmdetection/data/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/train_final/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/testing/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/VOC2007_add_patch/coco/'
-# data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/COCO/'
+data_root = '/media/wrc/0EB90E450EB90E45/data/car_only/train0.8/coco/'
 img_norm_cfg = dict(
     mean=[102.9801, 115.9465, 122.7717], std=[1.0, 1.0, 1.0], to_rgb=False)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='Resize', img_scale=[(1333, 800),(1500,800),(1800,800)], keep_ratio=True, multiscale_mode='value'),
+    dict(type='Resize', img_scale=(1333,800), keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     # dict(type='MinIoURandomCrop'),
     dict(type='Normalize', **img_norm_cfg),
@@ -197,7 +197,7 @@ data = dict(
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/test2019.json',
+        ann_file=data_root + 'annotations/instances_val2017.json',
         img_prefix=data_root + 'val2017/',
         pipeline=test_pipeline))
 # optimizer
@@ -223,7 +223,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/ga_faster_rcnn_balanced_r50_caffe_multiscaletrain'
+work_dir = './work_dirs/ga_faster_rcnn_balanced_r50_caffe_onlycar'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
