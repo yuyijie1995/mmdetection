@@ -142,10 +142,11 @@ mmdet/models/mask_heads/maskiou_head.py
 mmdet/models/necks/__init__.py
 mmdet/models/necks/bfp.py
 mmdet/models/necks/bifpn.py
+mmdet/models/necks/bipanet.py
 mmdet/models/necks/fpn.py
 mmdet/models/necks/hrfpn.py
 mmdet/models/necks/nas_fpn.py
-mmdet/models/necks/res_pafpn.py
+mmdet/models/necks/res_pa.py
 mmdet/models/plugins/__init__.py
 mmdet/models/plugins/generalized_attention.py
 mmdet/models/plugins/non_local.py

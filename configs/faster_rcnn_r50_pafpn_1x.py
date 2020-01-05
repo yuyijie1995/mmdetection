@@ -10,7 +10,7 @@ model = dict(
         frozen_stages=1,
         style='pytorch'),
     neck=dict(
-        type='PAnet',
+        type='RESFPN',
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
         num_outs=5),
@@ -99,9 +99,9 @@ test_cfg = dict(
 )
 # dataset settings
 dataset_type = 'CocoDataset'
-data_root = '/media/wrc/0EB90E450EB90E45/mmdetection/data/coco/'
+# data_root = '/media/wrc/0EB90E450EB90E45/mmdetection/data/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/VOC2007_add_patch/coco/'
-# data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/COCO/'
+data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/COCO/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
@@ -152,12 +152,17 @@ data = dict(
 optimizer = dict(type='SGD', lr=0.005, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
-lr_config = dict(
-    policy='step',
-    warmup='linear',
-    warmup_iters=500,
-    warmup_ratio=1.0 / 3,
-    step=[8, 11])
+# lr_config = dict(
+#     policy='step',
+#     warmup='linear',
+#     warmup_iters=500,
+#     warmup_ratio=1.0 / 3,
+#     step=[8, 11])
+lr_config=dict(
+policy = 'cosine',
+warmup = 'linear',
+warmup_iters = 500,
+warmup_ratio = 0.0001)
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -171,7 +176,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/faster_rcnn_r50_panet_1x_1'
+work_dir = './work_dirs/resfpn'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

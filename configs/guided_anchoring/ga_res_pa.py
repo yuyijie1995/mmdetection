@@ -124,14 +124,14 @@ test_cfg = dict(
         score_thr=1e-3, nms=dict(type='nms', iou_thr=0.5), max_per_img=100))
 # dataset settings
 dataset_type = 'CocoDataset'
-data_root = 'data/0.8train_0.2val/COCO/'
+# data_root = 'data/0.8train_0.2val/COCO/'
 # data_root = 'data/train_final/coco/'
 # data_root = 'data/testing/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/mmdetection/data/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/train_final/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/testing/coco/'
 # data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/VOC2007_add_patch/coco/'
-# data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/COCO/'
+data_root = '/media/wrc/0EB90E450EB90E45/data/kitti/0.8train_0.2val/COCO/'
 img_norm_cfg = dict(
     mean=[102.9801, 115.9465, 122.7717], std=[1.0, 1.0, 1.0], to_rgb=False)
 train_pipeline = [
@@ -178,7 +178,7 @@ data = dict(
         img_prefix=data_root + 'val2017/',
         pipeline=test_pipeline))
 # optimizer
-optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.0025, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
@@ -200,7 +200,7 @@ log_config = dict(
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/ga_faster_rcnn_r50_caffe_respa_1x'
+work_dir = './work_dirs/ga_respa'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

@@ -62,7 +62,6 @@ class SeparableConv2d(nn.Module):
         x = self.pointwise(x)
         return x
 
-
 class bifpn(nn.Module):
 
     def __init__(self,
@@ -173,7 +172,7 @@ class BiFPN(nn.Module):
                  start_level=0,
                  end_level=-1,
                  stack=1,
-                 add_extra_convs=False,
+                 add_extra_convs=True,
                  extra_convs_on_inputs=True,
                  relu_before_extra_convs=False,
                  no_norm_on_lateral=False,
@@ -207,6 +206,7 @@ class BiFPN(nn.Module):
 
         self.lateral_convs = nn.ModuleList()
         # self.fpn_convs = nn.ModuleList()
+        # self.laterl_p6=nn.ModuleList()
 
         for i in range(self.start_level, self.backbone_end_level):
             l_conv = ConvModule(
@@ -219,6 +219,15 @@ class BiFPN(nn.Module):
                 inplace=False)
 
             self.lateral_convs.append(l_conv)
+        # p6_conv=ConvModule(
+        #     out_channels,
+        #     out_channels,
+        #     1,
+        #     conv_cfg=conv_cfg,
+        #     norm_cfg=norm_cfg if not self.no_norm_on_lateral else None,
+        #     activation=self.activation,
+        #     inplace=False
+        # )
 
         # add extra conv layers (e.g., RetinaNet)
         extra_levels = num_outs - self.backbone_end_level + self.start_level
@@ -264,7 +273,7 @@ class BiFPN(nn.Module):
                 outs.append(self.lateral_convs[used_backbone_levels](orig))
             else:
                 outs.append(self.lateral_convs[used_backbone_levels](outs[-1]))
-            for i in range(used_backbone_levels + 1, self.num_outs):
+            for i in range(used_backbone_levels + 1, self.num_outs):#过一遍relu
                 if self.relu_before_extra_convs:
                     outs.append(self.lateral_convs[i](F.relu(outs[-1])))
                 else:

@@ -22,7 +22,7 @@ class CocoDataset(CustomDataset):
     #            'mouse', 'remote', 'keyboard', 'cell_phone', 'microwave',
     #            'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock',
     #            'vase', 'scissors', 'teddy_bear', 'hair_drier', 'toothbrush')
-    CLASSES = ('car')
+    CLASSES = ('car','cyclist','pedestrian')
 
     def load_annotations(self, ann_file):#重寫了父類的load_annotations 加載字典
         self.coco = COCO(ann_file)

@@ -10,7 +10,7 @@ from ..registry import BACKBONES
 from ..utils import build_conv_layer, build_norm_layer
 
 
-class BasicBlock(nn.Module):
+class BasicBlock(nn.Module):#基础版本的resnet块 但没有1*1 3*3 1*1这种降低维度的bottle结构
     expansion = 1
 
     def __init__(self,
@@ -81,9 +81,9 @@ class BasicBlock(nn.Module):
         return out
 
 
-class Bottleneck(nn.Module):
+class Bottleneck(nn.Module):#与基础模块不同 定义了三个卷积 分别用于压缩维度，卷积处理和恢复维度 实现bottle结构
     expansion = 4
-
+    #在bottleneck中planes 不再是输出通道数 而是block内部压缩后的通道数，输出通道数变成plane*expansion
     def __init__(self,
                  inplanes,
                  planes,
@@ -146,7 +146,7 @@ class Bottleneck(nn.Module):
         self.with_modulated_dcn = False
         if self.with_dcn:
             fallback_on_stride = dcn.get('fallback_on_stride', False)
-            self.with_modulated_dcn = dcn.get('modulated', False)
+            self.with_modulated_dcn = dcn.get('modulated', False)#key 在dict中返回True
         if not self.with_dcn or fallback_on_stride:
             self.conv2 = build_conv_layer(
                 conv_cfg,
@@ -274,17 +274,17 @@ def make_res_layer(block,
                    with_cp=False,
                    conv_cfg=None,
                    norm_cfg=dict(type='BN'),
-                   dcn=None,
+                   dcn=None,#dcn 是一个dict 第一个stage没有dcn
                    gcb=None,
                    gen_attention=None,
                    gen_attention_blocks=[]):
     downsample = None
-    if stride != 1 or inplanes != planes * block.expansion:
+    if stride != 1 or inplanes != planes * block.expansion:#第一个stage stride是1 expansion=4 还是要降维
         downsample = nn.Sequential(
             build_conv_layer(
                 conv_cfg,
                 inplanes,
-                planes * block.expansion,
+                planes * block.expansion,#expansion 是对输出通道数的倍乘 在basic模块中都是1
                 kernel_size=1,
                 stride=stride,
                 bias=False),
@@ -294,8 +294,8 @@ def make_res_layer(block,
     layers = []
     layers.append(
         block(
-            inplanes=inplanes,
-            planes=planes,
+            inplanes=inplanes,#64
+            planes=planes,#64
             stride=stride,
             dilation=dilation,
             downsample=downsample,
@@ -330,7 +330,10 @@ def make_res_layer(block,
 @BACKBONES.register_module
 class ResNet(nn.Module):
     """ResNet backbone.
-
+    resnet共有五个阶段，其中第一阶段为一个7x7的卷积处理，stride为2，然后经过池化处理，
+    此时特征图的尺寸已成为输入的1/4，接下来是四个阶段，也就是代码中的layer1,layer2,layer3,layer4。
+    这里用make_layer函数产生四个layer，
+    需要用户输入每个layer的block数目（即layers列表)以及采用的block类型（基础版还是bottleneck版）
     Args:
         depth (int): Depth of resnet, from {18, 34, 50, 101, 152}.
         in_channels (int): Number of input image channels. Normally 3.
@@ -398,35 +401,35 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
-        self.depth = depth
-        self.num_stages = num_stages
+        self.depth = depth#50
+        self.num_stages = num_stages#4
         assert num_stages >= 1 and num_stages <= 4
-        self.strides = strides
-        self.dilations = dilations
+        self.strides = strides#(1,2,2,2)
+        self.dilations = dilations#(1,1,1,1)
         assert len(strides) == len(dilations) == num_stages
-        self.out_indices = out_indices
+        self.out_indices = out_indices#(0,1,2,3)
         assert max(out_indices) < num_stages
-        self.style = style
-        self.frozen_stages = frozen_stages
+        self.style = style#(pytorch or caffe)
+        self.frozen_stages = frozen_stages#(1)
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.with_cp = with_cp
         self.norm_eval = norm_eval
-        self.dcn = dcn
-        self.stage_with_dcn = stage_with_dcn
+        self.dcn = dcn#是一个dict (modulated=False,deformable_froups=1,fallback_on_stride=False)
+        self.stage_with_dcn = stage_with_dcn#(F,T,T,T)
         if dcn is not None:
             assert len(stage_with_dcn) == num_stages
-        self.gen_attention = gen_attention
-        self.gcb = gcb
-        self.stage_with_gcb = stage_with_gcb
+        self.gen_attention = gen_attention#None
+        self.gcb = gcb#None
+        self.stage_with_gcb = stage_with_gcb#(F,F,F,F)
         if gcb is not None:
             assert len(stage_with_gcb) == num_stages
-        self.zero_init_residual = zero_init_residual
-        self.block, stage_blocks = self.arch_settings[depth]
-        self.stage_blocks = stage_blocks[:num_stages]
-        self.inplanes = 64
+        self.zero_init_residual = zero_init_residual#T
+        self.block, stage_blocks = self.arch_settings[depth]#block的形式是Bottleneck, stage_blocks=(3,4,6,3)
+        self.stage_blocks = stage_blocks[:num_stages]#(3,4,6,3)
+        self.inplanes = 64#输入的channels
 
-        self._make_stem_layer(in_channels)
+        self._make_stem_layer(in_channels)#in_channels 3
 
         self.res_layers = []
         for i, num_blocks in enumerate(self.stage_blocks):
@@ -436,12 +439,12 @@ class ResNet(nn.Module):
             gcb = self.gcb if self.stage_with_gcb[i] else None
             planes = 64 * 2**i
             res_layer = make_res_layer(
-                self.block,
-                self.inplanes,
-                planes,
-                num_blocks,
-                stride=stride,
-                dilation=dilation,
+                self.block,#Bottle
+                self.inplanes,# 输入64
+                planes,#输出64
+                num_blocks,#3，4，5，6
+                stride=stride,#1，2，2，2
+                dilation=dilation,#1
                 style=self.style,
                 with_cp=with_cp,
                 conv_cfg=conv_cfg,
@@ -450,7 +453,7 @@ class ResNet(nn.Module):
                 gcb=gcb,
                 gen_attention=gen_attention,
                 gen_attention_blocks=stage_with_gen_attention[i])
-            self.inplanes = planes * self.block.expansion
+            self.inplanes = planes * self.block.expansion#inplanes 其实就是输入的channels planes就是中间将了维度的channels
             layer_name = 'layer{}'.format(i + 1)
             self.add_module(layer_name, res_layer)
             self.res_layers.append(layer_name)

@@ -26,6 +26,7 @@ class SingleRoIExtractor(nn.Module):
                  roi_layer,
                  out_channels,
                  featmap_strides,
+                 add_context=False,
                  finest_scale=56):
         super(SingleRoIExtractor, self).__init__()
         self.roi_layers = self.build_roi_layers(roi_layer, featmap_strides)
@@ -33,6 +34,8 @@ class SingleRoIExtractor(nn.Module):
         self.featmap_strides = featmap_strides
         self.finest_scale = finest_scale
         self.fp16_enabled = False
+        self.add_context = add_context
+        self.pool = torch.nn.AdaptiveAvgPool2d(7)
 
     @property
     def num_inputs(self):
@@ -89,11 +92,17 @@ class SingleRoIExtractor(nn.Module):
 
     @force_fp32(apply_to=('feats', ), out_fp16=True)
     def forward(self, feats, rois, roi_scale_factor=None):
+        #rois 是2048，5 5代表1个图片索引和4个坐标
         if len(feats) == 1:
             return self.roi_layers[0](feats[0], rois)
+        if self.add_context:
+            context = []
+            for feat in feats:
+                context.append(self.pool(feat))
 
         out_size = self.roi_layers[0].out_size
         num_levels = len(feats)
+        batch_size = feats[0].shape[0]
         target_lvls = self.map_roi_levels(rois, num_levels)
         roi_feats = feats[0].new_zeros(
             rois.size(0), self.out_channels, *out_size)
@@ -101,8 +110,11 @@ class SingleRoIExtractor(nn.Module):
             rois = self.roi_rescale(rois, roi_scale_factor)
         for i in range(num_levels):
             inds = target_lvls == i
-            if inds.any():#有一个不为False则返回True
+            if inds.any():
                 rois_ = rois[inds, :]
                 roi_feats_t = self.roi_layers[i](feats[i], rois_)
+                if self.add_context:
+                    for j in range(batch_size):
+                        roi_feats_t[rois_[:, 0] == j] += context[i][j]
                 roi_feats[inds] = roi_feats_t
         return roi_feats
